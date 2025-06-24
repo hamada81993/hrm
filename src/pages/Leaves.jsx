@@ -17,7 +17,7 @@ const Leaves = () => {
     notes: ''
   });
 
-  const API_BASE_URL = 'http://spl-pro.com/hr/api';
+  const API_BASE_URL = 'https://spl-pro.com/hr/api';
 
   useEffect(() => {
     fetchLeaves();
