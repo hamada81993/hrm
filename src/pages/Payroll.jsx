@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import axios from 'axios';
 
-const API_BASE_URL = 'https://8000-i4rcy7spqh5n40ny0z4f3-4f62436f.manusvm.computer/api';
+const API_BASE_URL = 'http://spl-pro.com/hr/api';
 
 const Payroll = () => {
   const [employees, setEmployees] = useState([]);
