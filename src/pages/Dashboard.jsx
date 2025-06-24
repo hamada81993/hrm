@@ -4,7 +4,7 @@ import { Users, UserCheck, UserX, UserPlus, TrendingUp, Building, MapPin } from 
 import { PieChart, Pie, Cell, ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip } from 'recharts'
 import axios from 'axios'
 
-const API_BASE_URL = 'http://spl-pro.com/hr/api'
+const API_BASE_URL = 'https://spl-pro.com/hr/api'
 
 const Dashboard = () => {
   const [employees, setEmployees] = useState([])
