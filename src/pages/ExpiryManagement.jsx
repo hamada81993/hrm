@@ -19,7 +19,7 @@ import {
 } from 'lucide-react';
 import axios from 'axios';
 
-const API_BASE_URL = 'http://spl-pro.com/hr/api';
+const API_BASE_URL = 'https://spl-pro.com/hr/api';
 
 const ExpiryManagement = () => {
   const [employees, setEmployees] = useState([]);
