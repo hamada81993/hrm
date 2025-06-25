@@ -7,7 +7,7 @@ import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Eye, EyeOff, Mail, Lock } from 'lucide-react'
 import axios from 'axios'
 
-const API_BASE_URL = 'https://8000-ikjv94jznu3kys1ndw21z-4980ff6a.manus.computer/api'
+const API_BASE_URL = 'https://spl-pro.com/hr/api'
 
 const Login = ({ setIsAuthenticated }) => {
   const [formData, setFormData] = useState({

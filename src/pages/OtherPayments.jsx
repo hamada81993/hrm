@@ -16,7 +16,7 @@ const OtherPayments = () => {
   })
   const [editingId, setEditingId] = useState(null)
 
-  const API_BASE_URL = 'https://8000-ilws1uectkb5gq2pm9r49-4f62436f.manusvm.computer/api'
+  const API_BASE_URL = 'https://spl-pro.com/hr/api'
 
   const paymentTypes = [
     'تكلفة الإقامة',
