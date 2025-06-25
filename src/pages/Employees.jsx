@@ -22,7 +22,7 @@ import {
 } from 'lucide-react'
 import axios from 'axios'
 
-const API_BASE_URL = 'https://spl-pro.com/hr/api'
+const API_BASE_URL = 'https://hr.spl-pro.com/api'
 
 const Employees = () => {
   const [employees, setEmployees] = useState([])

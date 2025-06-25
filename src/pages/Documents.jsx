@@ -14,7 +14,7 @@ const Documents = () => {
   });
   const [selectedFile, setSelectedFile] = useState(null);
 
-  const API_BASE_URL = 'https://spl-pro.com/hr/api';
+  const API_BASE_URL = 'https://hr.spl-pro.com/api';
 
   useEffect(() => {
     fetchDocuments();
