@@ -140,9 +140,6 @@ const Payroll = () => {
       setSelectedEmployee(response.data.employee);
     } catch (error) {
       console.error("Error fetching salary details:", error);
-      alert("حدث خطأ أثناء جلب تفاصيل راتب الموظف. يرجى المحاولة مرة أخرى.");
-      setSalaryDetails(null); // Clear previous details on error
-      setSelectedEmployee(null); // Clear selected employee on error
     } finally {
       setLoading(false);
     }
@@ -163,18 +160,14 @@ const Payroll = () => {
           dataToSend = {
             ...formData,
             date: formData.date || new Date().toISOString().slice(0, 10),
-            // Ensure repayment_status is valid, 'pending' is a common default
-            repayment_status: formData.repayment_status || 'pending',
-            // Ensure installment_months is present and a number
-            installment_months: parseInt(formData.installment_months) || 1 // Default to 1 if not provided
+            repayment_status: formData.repayment_status || 'pending'
           };
           break;
         case "penalty":
           endpoint = `${API_BASE_URL}/penalties`;
           dataToSend = {
             ...formData,
-            date: formData.date || new Date().toISOString().slice(0, 10),
-            type: formData.type || 'خصم' // Added default type for penalty
+            date: formData.date || new Date().toISOString().slice(0, 10)
           };
           break;
         case "allowance":
@@ -183,6 +176,7 @@ const Payroll = () => {
             ...formData,
             calculation_type: formData.calculation_type || 'fixed',
             payment_date: formData.payment_date || new Date().toISOString().slice(0, 10),
+            // Ensure type is a valid allowance type
             type: formData.type || 'housing_allowance'
           };
           break;
@@ -192,7 +186,8 @@ const Payroll = () => {
             ...formData,
             calculation_type: formData.calculation_type || 'fixed',
             payment_date: formData.payment_date || new Date().toISOString().slice(0, 10),
-            type: formData.type || 'bonus' // Added default type for otherPayment
+            // Ensure type is a valid payment type
+            type: formData.type || 'bonus'
           };
           break;
         case "custody":
@@ -205,23 +200,21 @@ const Payroll = () => {
           break;
         case "attendance":
           endpoint = `${API_BASE_URL}/attendances`;
-          const formatTime = (date) => {
-            return date.toTimeString().slice(0, 5); // HH:MM
-          };
-
+          // Format check_in and check_out to H:i format (24-hour time)
           let checkInTime = '';
           let checkOutTime = '';
           
           if (formData.check_in) {
             const checkInDate = new Date(formData.check_in);
-            checkInTime = formatTime(checkInDate);
+            checkInTime = checkInDate.toTimeString().slice(0, 5); // HH:MM format
           } else {
-            checkInTime = formatTime(new Date());
+            const now = new Date();
+            checkInTime = now.toTimeString().slice(0, 5);
           }
           
           if (formData.check_out) {
             const checkOutDate = new Date(formData.check_out);
-            checkOutTime = formatTime(checkOutDate);
+            checkOutTime = checkOutDate.toTimeString().slice(0, 5); // HH:MM format
           }
           
           dataToSend = {
@@ -260,11 +253,10 @@ const Payroll = () => {
       }
     } catch (error) {
       console.error("Error submitting form:", error);
+      // Show error message to user
       if (error.response && error.response.data && error.response.data.errors) {
         console.error("Validation errors:", error.response.data.errors);
         alert("خطأ في التحقق من البيانات: " + JSON.stringify(error.response.data.errors));
-      } else {
-        alert("حدث خطأ غير متوقع أثناء إرسال البيانات.");
       }
     } finally {
       setLoading(false);
@@ -315,7 +307,6 @@ const Payroll = () => {
       }
     } catch (error) {
       console.error("Error deleting item:", error);
-      alert("حدث خطأ أثناء حذف العنصر.");
     } finally {
       setLoading(false);
     }
@@ -323,6 +314,7 @@ const Payroll = () => {
 
   const openModal = (type, item = {}) => {
     setModalType(type);
+    // Initialize form data with default values based on type
     let initialFormData = { ...item };
     
     switch (type) {
@@ -330,15 +322,7 @@ const Payroll = () => {
         initialFormData = {
           ...item,
           date: item.date || new Date().toISOString().slice(0, 10),
-          repayment_status: item.repayment_status || 'pending',
-          installment_months: item.installment_months || 1 // Default to 1 if not provided
-        };
-        break;
-      case "penalty":
-        initialFormData = {
-          ...item,
-          date: item.date || new Date().toISOString().slice(0, 10),
-          type: item.type || 'خصم' // Default type for penalty
+          repayment_status: item.repayment_status || 'pending'
         };
         break;
       case "allowance":
@@ -354,7 +338,7 @@ const Payroll = () => {
           ...item,
           calculation_type: item.calculation_type || 'fixed',
           payment_date: item.payment_date || new Date().toISOString().slice(0, 10),
-          type: item.type || 'bonus' // Default type for otherPayment
+          type: item.type || 'bonus'
         };
         break;
       case "custody":
@@ -365,30 +349,27 @@ const Payroll = () => {
         };
         break;
       case "attendance":
+        // Format datetime-local values for the form
         let checkInValue = '';
         let checkOutValue = '';
         
-        const formatToDateTimeLocal = (dateStr, timeStr) => {
-          if (!dateStr || !timeStr) return '';
-          return `${dateStr}T${timeStr}`;
-        };
-
         if (item.check_in) {
+          // If it's already in H:i format, convert to datetime-local
           if (item.check_in.includes(':') && !item.check_in.includes('T')) {
             const today = item.date || new Date().toISOString().slice(0, 10);
-            checkInValue = formatToDateTimeLocal(today, item.check_in);
+            checkInValue = `${today}T${item.check_in}`;
           } else {
             checkInValue = item.check_in;
           }
         } else {
           const now = new Date();
-          checkInValue = now.toISOString().slice(0, 16); // YYYY-MM-DDTHH:MM
+          checkInValue = now.toISOString().slice(0, 16);
         }
         
         if (item.check_out) {
           if (item.check_out.includes(':') && !item.check_out.includes('T')) {
             const today = item.date || new Date().toISOString().slice(0, 10);
-            checkOutValue = formatToDateTimeLocal(today, item.check_out);
+            checkOutValue = `${today}T${item.check_out}`;
           } else {
             checkOutValue = item.check_out;
           }
@@ -509,103 +490,129 @@ const Payroll = () => {
       {/* Summary Tab */}
       {activeTab === "summary" && payrollSummary && (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
-          {/* Summary content here */}
-          <div className="bg-white p-4 rounded-lg shadow">
-            <h2 className="text-lg font-semibold text-gray-800">إجمالي الرواتب</h2>
-            <p className="text-2xl font-bold text-blue-600">{payrollSummary.totalSalaries} ر.س</p>
+          <div className="bg-white p-6 rounded-lg shadow">
+            <h3 className="text-lg font-semibold text-gray-900 mb-2">إجمالي الموظفين</h3>
+            <p className="text-3xl font-bold text-blue-600">{payrollSummary.total_employees}</p>
           </div>
-          <div className="bg-white p-4 rounded-lg shadow">
-            <h2 className="text-lg font-semibold text-gray-800">إجمالي السلف</h2>
-            <p className="text-2xl font-bold text-red-600">{payrollSummary.totalAdvances} ر.س</p>
+          <div className="bg-white p-6 rounded-lg shadow">
+            <h3 className="text-lg font-semibold text-gray-900 mb-2">إجمالي الرواتب الأساسية</h3>
+            <p className="text-3xl font-bold text-green-600">{parseFloat(payrollSummary.total_basic_salary || '0').toLocaleString()} ريال</p>
           </div>
-          <div className="bg-white p-4 rounded-lg shadow">
-            <h2 className="text-lg font-semibold text-gray-800">إجمالي الجزاءات</h2>
-            <p className="text-2xl font-bold text-red-600">{payrollSummary.totalPenalties} ر.س</p>
+          <div className="bg-white p-6 rounded-lg shadow">
+            <h3 className="text-lg font-semibold text-gray-900 mb-2">إجمالي البدلات</h3>
+            <p className="text-3xl font-bold text-blue-600">{parseFloat(payrollSummary.total_allowances || '0').toLocaleString()} ريال</p>
           </div>
-          <div className="bg-white p-4 rounded-lg shadow">
-            <h2 className="text-lg font-semibold text-gray-800">إجمالي البدلات</h2>
-            <p className="text-2xl font-bold text-green-600">{payrollSummary.totalAllowances} ر.س</p>
+          <div className="bg-white p-6 rounded-lg shadow">
+            <h3 className="text-lg font-semibold text-gray-900 mb-2">إجمالي الخصومات</h3>
+            <p className="text-3xl font-bold text-red-600">{parseFloat(payrollSummary.total_deductions || '0').toLocaleString()} ريال</p>
           </div>
-          <div className="bg-white p-4 rounded-lg shadow">
-            <h2 className="text-lg font-semibold text-gray-800">إجمالي المدفوعات الأخرى</h2>
-            <p className="text-2xl font-bold text-green-600">{payrollSummary.totalOtherPayments} ر.س</p>
+          <div className="bg-white p-6 rounded-lg shadow">
+            <h3 className="text-lg font-semibold text-gray-900 mb-2">صافي الرواتب</h3>
+            <p className="text-3xl font-bold text-green-600">{parseFloat(payrollSummary.total_net_salary || '0').toLocaleString()} ريال</p>
+          </div>
+          <div className="bg-white p-6 rounded-lg shadow">
+            <h3 className="text-lg font-semibold text-gray-900 mb-2">متوسط الراتب</h3>
+            <p className="text-3xl font-bold text-purple-600">{parseFloat(payrollSummary.average_net_salary || '0').toLocaleString()} ريال</p>
           </div>
         </div>
       )}
 
       {/* Employees Tab */}
       {activeTab === "employees" && (
-        <div>
-          <h2 className="text-2xl font-bold text-gray-800 mb-4">رواتب الموظفين</h2>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {employees.map((employee) => (
-              <div
-                key={employee.id}
-                className="bg-white p-4 rounded-lg shadow cursor-pointer hover:bg-gray-100"
-                onClick={() => fetchEmployeeSalaryDetails(employee.id)}
-              >
-                <h3 className="text-lg font-semibold text-gray-800">{employee.name}</h3>
-                <p className="text-gray-600">{employee.position}</p>
-              </div>
-            ))}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          <div className="bg-white p-6 rounded-lg shadow">
+            <h3 className="text-lg font-semibold text-gray-900 mb-4">اختر موظف</h3>
+            <div className="space-y-2">
+              {employees.map((employee) => (
+                <button
+                  key={employee.id}
+                  onClick={() => fetchEmployeeSalaryDetails(employee.id)}
+                  className={`w-full text-right p-3 rounded-lg border ${
+                    selectedEmployee?.id === employee.id
+                      ? "border-blue-500 bg-blue-50"
+                      : "border-gray-200 hover:border-gray-300"
+                  }`}
+                >
+                  <div className="font-medium">{employee.name}</div>
+                  <div className="text-sm text-gray-500">{employee.position}</div>
+                </button>
+              ))}
+            </div>
           </div>
 
           {selectedEmployee && salaryDetails && (
-            <div className="mt-8 bg-white p-6 rounded-lg shadow">
-              <h3 className="text-xl font-bold text-gray-800 mb-4">تفاصيل راتب {selectedEmployee.name}</h3>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <p><strong>الراتب الأساسي:</strong> {salaryDetails.base_salary} ر.س</p>
-                <p><strong>البدلات:</strong> {salaryDetails.total_allowances} ر.س</p>
-                <p><strong>السلف:</strong> {salaryDetails.total_advances} ر.س</p>
-                <p><strong>الجزاءات:</strong> {salaryDetails.total_penalties} ر.س</p>
-                <p><strong>المدفوعات الأخرى:</strong> {salaryDetails.total_other_payments} ر.س</p>
-                <p><strong>صافي الراتب:</strong> {salaryDetails.net_salary} ر.س</p>
+            <div className="bg-white p-6 rounded-lg shadow">
+              <h3 className="text-lg font-semibold text-gray-900 mb-4">تفاصيل راتب {selectedEmployee.name}</h3>
+              <div className="space-y-2">
+                <p><strong>الراتب الأساسي:</strong> {parseFloat(salaryDetails.data.basic_salary || '0').toLocaleString()} ريال</p>
+                <p><strong>البدلات:</strong> {(parseFloat(salaryDetails.data.housing_allowance || '0') + parseFloat(salaryDetails.data.transportation_allowance || '0') + parseFloat(salaryDetails.data.commissions || '0') + parseFloat(salaryDetails.data.other_allowances || '0')).toLocaleString()} ريال</p>
+                <p><strong>الخصومات:</strong> {parseFloat(salaryDetails.data.total_deductions || '0').toLocaleString()} ريال</p>
+                <p><strong>صافي الراتب:</strong> {parseFloat(salaryDetails.data.total_salary || '0').toLocaleString()} ريال</p>
               </div>
             </div>
           )}
-
-          {loading && <p className="text-center mt-4">جاري التحميل...</p>}
         </div>
       )}
 
       {/* Advances Tab */}
       {activeTab === "advances" && (
         <div>
-          <h2 className="text-2xl font-bold text-gray-800 mb-4">السلف</h2>
-          <button
-            onClick={() => openModal("advance")}
-            className="bg-blue-500 text-white px-4 py-2 rounded-md mb-4 hover:bg-blue-600"
-          >
-            إضافة سلفة جديدة
-          </button>
-          <div className="overflow-x-auto">
-            <table className="min-w-full bg-white rounded-lg shadow overflow-hidden">
-              <thead className="bg-gray-200">
+          <div className="flex justify-between items-center mb-4">
+            <h2 className="text-2xl font-bold text-gray-900">السلف</h2>
+            <button
+              onClick={() => openModal("advance")}
+              className="bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700"
+            >
+              إضافة سلفة جديدة
+            </button>
+          </div>
+          <div className="bg-white p-6 rounded-lg shadow">
+            <table className="min-w-full divide-y divide-gray-200">
+              <thead className="bg-gray-50">
                 <tr>
-                  <th className="py-2 px-4 text-right text-gray-600">الموظف</th>
-                  <th className="py-2 px-4 text-right text-gray-600">المبلغ</th>
-                  <th className="py-2 px-4 text-right text-gray-600">التاريخ</th>
-                  <th className="py-2 px-4 text-right text-gray-600">حالة السداد</th>
-                  <th className="py-2 px-4 text-right text-gray-600">الإجراءات</th>
+                  <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">الموظف</th>
+                  <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">المبلغ الإجمالي</th>
+                  <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">عدد أشهر التقسيط</th>
+                  <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">القسط الشهري</th>
+                  <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">الحالة</th>
+                  <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">الإجراءات</th>
                 </tr>
               </thead>
-              <tbody>
+              <tbody className="bg-white divide-y divide-gray-200">
                 {advances.map((advance) => (
-                  <tr key={advance.id} className="border-b border-gray-200 last:border-b-0">
-                    <td className="py-2 px-4">{advance.employee_name}</td>
-                    <td className="py-2 px-4">{advance.amount}</td>
-                    <td className="py-2 px-4">{advance.date}</td>
-                    <td className="py-2 px-4">{advance.repayment_status}</td>
-                    <td className="py-2 px-4">
+                  <tr key={advance.id}>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+                      {advance.employee?.name || 'غير محدد'}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                      {parseFloat(advance.total_amount || '0').toLocaleString()} ريال
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                      {advance.installment_months || 'غير محدد'}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                      {parseFloat(advance.monthly_installment || '0').toLocaleString()} ريال
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                      <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${
+                        advance.repayment_status === 'paid' ? 'bg-green-100 text-green-800' :
+                        advance.repayment_status === 'pending' ? 'bg-yellow-100 text-yellow-800' :
+                        'bg-red-100 text-red-800'
+                      }`}>
+                        {advance.repayment_status === 'paid' ? 'مسدد' :
+                         advance.repayment_status === 'pending' ? 'معلق' : 'متأخر'}
+                      </span>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
                       <button
                         onClick={() => openModal("advance", advance)}
-                        className="text-blue-600 hover:text-blue-800 mr-2"
+                        className="text-indigo-600 hover:text-indigo-900 ml-2"
                       >
                         تعديل
                       </button>
                       <button
                         onClick={() => handleDelete("advance", advance.id)}
-                        className="text-red-600 hover:text-red-800"
+                        className="text-red-600 hover:text-red-900"
                       >
                         حذف
                       </button>
@@ -621,41 +628,55 @@ const Payroll = () => {
       {/* Penalties Tab */}
       {activeTab === "penalties" && (
         <div>
-          <h2 className="text-2xl font-bold text-gray-800 mb-4">الجزاءات والخصومات</h2>
-          <button
-            onClick={() => openModal("penalty")}
-            className="bg-blue-500 text-white px-4 py-2 rounded-md mb-4 hover:bg-blue-600"
-          >
-            إضافة جزاء جديد
-          </button>
-          <div className="overflow-x-auto">
-            <table className="min-w-full bg-white rounded-lg shadow overflow-hidden">
-              <thead className="bg-gray-200">
+          <div className="flex justify-between items-center mb-4">
+            <h2 className="text-2xl font-bold text-gray-900">الجزاءات والخصومات</h2>
+            <button
+              onClick={() => openModal("penalty")}
+              className="bg-red-600 text-white px-4 py-2 rounded-md hover:bg-red-700"
+            >
+              إضافة جزاء جديد
+            </button>
+          </div>
+          <div className="bg-white p-6 rounded-lg shadow">
+            <table className="min-w-full divide-y divide-gray-200">
+              <thead className="bg-gray-50">
                 <tr>
-                  <th className="py-2 px-4 text-right text-gray-600">الموظف</th>
-                  <th className="py-2 px-4 text-right text-gray-600">المبلغ</th>
-                  <th className="py-2 px-4 text-right text-gray-600">التاريخ</th>
-                  <th className="py-2 px-4 text-right text-gray-600">السبب</th>
-                  <th className="py-2 px-4 text-right text-gray-600">الإجراءات</th>
+                  <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">الموظف</th>
+                  <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">نوع الجزاء</th>
+                  <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">المبلغ</th>
+                  <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">السبب</th>
+                  <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">التاريخ</th>
+                  <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">الإجراءات</th>
                 </tr>
               </thead>
-              <tbody>
+              <tbody className="bg-white divide-y divide-gray-200">
                 {penalties.map((penalty) => (
-                  <tr key={penalty.id} className="border-b border-gray-200 last:border-b-0">
-                    <td className="py-2 px-4">{penalty.employee_name}</td>
-                    <td className="py-2 px-4">{penalty.amount}</td>
-                    <td className="py-2 px-4">{penalty.date}</td>
-                    <td className="py-2 px-4">{penalty.reason}</td>
-                    <td className="py-2 px-4">
+                  <tr key={penalty.id}>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+                      {penalty.employee?.name || 'غير محدد'}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                      {penalty.type || 'غير محدد'}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                      {parseFloat(penalty.amount || '0').toLocaleString()} ريال
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                      {penalty.reason || 'غير محدد'}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                      {penalty.date ? new Date(penalty.date).toLocaleDateString('ar-SA') : 'غير محدد'}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
                       <button
                         onClick={() => openModal("penalty", penalty)}
-                        className="text-blue-600 hover:text-blue-800 mr-2"
+                        className="text-indigo-600 hover:text-indigo-900 ml-2"
                       >
                         تعديل
                       </button>
                       <button
                         onClick={() => handleDelete("penalty", penalty.id)}
-                        className="text-red-600 hover:text-red-800"
+                        className="text-red-600 hover:text-red-900"
                       >
                         حذف
                       </button>
@@ -671,41 +692,58 @@ const Payroll = () => {
       {/* Allowances Tab */}
       {activeTab === "allowances" && (
         <div>
-          <h2 className="text-2xl font-bold text-gray-800 mb-4">البدلات</h2>
-          <button
-            onClick={() => openModal("allowance")}
-            className="bg-blue-500 text-white px-4 py-2 rounded-md mb-4 hover:bg-blue-600"
-          >
-            إضافة بدل جديد
-          </button>
-          <div className="overflow-x-auto">
-            <table className="min-w-full bg-white rounded-lg shadow overflow-hidden">
-              <thead className="bg-gray-200">
+          <div className="flex justify-between items-center mb-4">
+            <h2 className="text-2xl font-bold text-gray-900">البدلات</h2>
+            <button
+              onClick={() => openModal("allowance")}
+              className="bg-green-600 text-white px-4 py-2 rounded-md hover:bg-green-700"
+            >
+              إضافة بدل جديد
+            </button>
+          </div>
+          <div className="bg-white p-6 rounded-lg shadow">
+            <table className="min-w-full divide-y divide-gray-200">
+              <thead className="bg-gray-50">
                 <tr>
-                  <th className="py-2 px-4 text-right text-gray-600">الموظف</th>
-                  <th className="py-2 px-4 text-right text-gray-600">النوع</th>
-                  <th className="py-2 px-4 text-right text-gray-600">المبلغ</th>
-                  <th className="py-2 px-4 text-right text-gray-600">تاريخ الدفع</th>
-                  <th className="py-2 px-4 text-right text-gray-600">الإجراءات</th>
+                  <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">الموظف</th>
+                  <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">نوع البدل</th>
+                  <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">المبلغ</th>
+                  <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">نوع الحساب</th>
+                  <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">تاريخ الدفع</th>
+                  <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">الإجراءات</th>
                 </tr>
               </thead>
-              <tbody>
+              <tbody className="bg-white divide-y divide-gray-200">
                 {allowances.map((allowance) => (
-                  <tr key={allowance.id} className="border-b border-gray-200 last:border-b-0">
-                    <td className="py-2 px-4">{allowance.employee_name}</td>
-                    <td className="py-2 px-4">{allowance.type}</td>
-                    <td className="py-2 px-4">{allowance.amount}</td>
-                    <td className="py-2 px-4">{allowance.payment_date}</td>
-                    <td className="py-2 px-4">
+                  <tr key={allowance.id}>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+                      {allowance.employee?.name || 'غير محدد'}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                      {allowance.type === 'housing_allowance' ? 'بدل سكن' :
+                       allowance.type === 'transportation_allowance' ? 'بدل مواصلات' :
+                       allowance.type === 'food_allowance' ? 'بدل طعام' :
+                       allowance.type || 'غير محدد'}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                      {parseFloat(allowance.amount || '0').toLocaleString()} ريال
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                      {allowance.calculation_type === 'fixed' ? 'ثابت' : 'متغير'}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                      {allowance.payment_date ? new Date(allowance.payment_date).toLocaleDateString('ar-SA') : 'غير محدد'}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
                       <button
                         onClick={() => openModal("allowance", allowance)}
-                        className="text-blue-600 hover:text-blue-800 mr-2"
+                        className="text-indigo-600 hover:text-indigo-900 ml-2"
                       >
                         تعديل
                       </button>
                       <button
                         onClick={() => handleDelete("allowance", allowance.id)}
-                        className="text-red-600 hover:text-red-800"
+                        className="text-red-600 hover:text-red-900"
                       >
                         حذف
                       </button>
@@ -721,41 +759,58 @@ const Payroll = () => {
       {/* Other Payments Tab */}
       {activeTab === "otherPayments" && (
         <div>
-          <h2 className="text-2xl font-bold text-gray-800 mb-4">مدفوعات أخرى</h2>
-          <button
-            onClick={() => openModal("otherPayment")}
-            className="bg-blue-500 text-white px-4 py-2 rounded-md mb-4 hover:bg-blue-600"
-          >
-            إضافة دفعة أخرى
-          </button>
-          <div className="overflow-x-auto">
-            <table className="min-w-full bg-white rounded-lg shadow overflow-hidden">
-              <thead className="bg-gray-200">
+          <div className="flex justify-between items-center mb-4">
+            <h2 className="text-2xl font-bold text-gray-900">مدفوعات أخرى</h2>
+            <button
+              onClick={() => openModal("otherPayment")}
+              className="bg-purple-600 text-white px-4 py-2 rounded-md hover:bg-purple-700"
+            >
+              إضافة مدفوعة جديدة
+            </button>
+          </div>
+          <div className="bg-white p-6 rounded-lg shadow">
+            <table className="min-w-full divide-y divide-gray-200">
+              <thead className="bg-gray-50">
                 <tr>
-                  <th className="py-2 px-4 text-right text-gray-600">الموظف</th>
-                  <th className="py-2 px-4 text-right text-gray-600">النوع</th>
-                  <th className="py-2 px-4 text-right text-gray-600">المبلغ</th>
-                  <th className="py-2 px-4 text-right text-gray-600">تاريخ الدفع</th>
-                  <th className="py-2 px-4 text-right text-gray-600">الإجراءات</th>
+                  <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">الموظف</th>
+                  <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">النوع</th>
+                  <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">المبلغ</th>
+                  <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">نوع الحساب</th>
+                  <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">تاريخ الدفع</th>
+                  <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">الإجراءات</th>
                 </tr>
               </thead>
-              <tbody>
+              <tbody className="bg-white divide-y divide-gray-200">
                 {otherPayments.map((payment) => (
-                  <tr key={payment.id} className="border-b border-gray-200 last:border-b-0">
-                    <td className="py-2 px-4">{payment.employee_name}</td>
-                    <td className="py-2 px-4">{payment.type}</td>
-                    <td className="py-2 px-4">{payment.amount}</td>
-                    <td className="py-2 px-4">{payment.payment_date}</td>
-                    <td className="py-2 px-4">
+                  <tr key={payment.id}>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+                      {payment.employee?.name || 'غير محدد'}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                      {payment.type === 'bonus' ? 'مكافأة' :
+                       payment.type === 'commission' ? 'عمولة' :
+                       payment.type === 'overtime' ? 'ساعات إضافية' :
+                       payment.type || 'غير محدد'}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                      {parseFloat(payment.amount || '0').toLocaleString()} ريال
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                      {payment.calculation_type === 'fixed' ? 'ثابت' : 'متغير'}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                      {payment.payment_date ? new Date(payment.payment_date).toLocaleDateString('ar-SA') : 'غير محدد'}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
                       <button
                         onClick={() => openModal("otherPayment", payment)}
-                        className="text-blue-600 hover:text-blue-800 mr-2"
+                        className="text-indigo-600 hover:text-indigo-900 ml-2"
                       >
                         تعديل
                       </button>
                       <button
                         onClick={() => handleDelete("otherPayment", payment.id)}
-                        className="text-red-600 hover:text-red-800"
+                        className="text-red-600 hover:text-red-900"
                       >
                         حذف
                       </button>
@@ -771,39 +826,62 @@ const Payroll = () => {
       {/* Custodies Tab */}
       {activeTab === "custodies" && (
         <div>
-          <h2 className="text-2xl font-bold text-gray-800 mb-4">العهد</h2>
-          <button
-            onClick={() => openModal("custody")}
-            className="bg-blue-500 text-white px-4 py-2 rounded-md mb-4 hover:bg-blue-600"
-          >
-            إضافة عهدة جديدة
-          </button>
-          <div className="overflow-x-auto">
-            <table className="min-w-full bg-white rounded-lg shadow overflow-hidden">
-              <thead className="bg-gray-200">
+          <div className="flex justify-between items-center mb-4">
+            <h2 className="text-2xl font-bold text-gray-900">العهد</h2>
+            <button
+              onClick={() => openModal("custody")}
+              className="bg-orange-600 text-white px-4 py-2 rounded-md hover:bg-orange-700"
+            >
+              إضافة عهدة جديدة
+            </button>
+          </div>
+          <div className="bg-white p-6 rounded-lg shadow">
+            <table className="min-w-full divide-y divide-gray-200">
+              <thead className="bg-gray-50">
                 <tr>
-                  <th className="py-2 px-4 text-right text-gray-600">الموظف</th>
-                  <th className="py-2 px-4 text-right text-gray-600">اسم العهدة</th>
-                  <th className="py-2 px-4 text-right text-gray-600">تاريخ الإصدار</th>
-                  <th className="py-2 px-4 text-right text-gray-600">الإجراءات</th>
+                  <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">الموظف</th>
+                  <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">اسم العهدة</th>
+                  <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">القيمة</th>
+                  <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">تاريخ الإصدار</th>
+                  <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">الحالة</th>
+                  <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">الإجراءات</th>
                 </tr>
               </thead>
-              <tbody>
+              <tbody className="bg-white divide-y divide-gray-200">
                 {custodies.map((custody) => (
-                  <tr key={custody.id} className="border-b border-gray-200 last:border-b-0">
-                    <td className="py-2 px-4">{custody.employee_name}</td>
-                    <td className="py-2 px-4">{custody.item_name}</td>
-                    <td className="py-2 px-4">{custody.issue_date}</td>
-                    <td className="py-2 px-4">
+                  <tr key={custody.id}>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+                      {custody.employee?.name || 'غير محدد'}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                      {custody.item_name || 'غير محدد'}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                      {parseFloat(custody.value || '0').toLocaleString()} ريال
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                      {custody.issue_date ? new Date(custody.issue_date).toLocaleDateString('ar-SA') : 'غير محدد'}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                      <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${
+                        custody.status === 'returned' ? 'bg-green-100 text-green-800' :
+                        custody.status === 'issued' ? 'bg-yellow-100 text-yellow-800' :
+                        'bg-red-100 text-red-800'
+                      }`}>
+                        {custody.status === 'returned' ? 'مُرجعة' :
+                         custody.status === 'issued' ? 'مُصدرة' : 'مفقودة'}
+                      </span>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
                       <button
                         onClick={() => openModal("custody", custody)}
-                        className="text-blue-600 hover:text-blue-800 mr-2"
+                        className="text-indigo-600 hover:text-indigo-900 ml-2"
                       >
                         تعديل
                       </button>
                       <button
                         onClick={() => handleDelete("custody", custody.id)}
-                        className="text-red-600 hover:text-red-800"
+                        className="text-red-600 hover:text-red-900"
                       >
                         حذف
                       </button>
@@ -819,41 +897,55 @@ const Payroll = () => {
       {/* Attendances Tab */}
       {activeTab === "attendances" && (
         <div>
-          <h2 className="text-2xl font-bold text-gray-800 mb-4">الحضور والانصراف</h2>
-          <button
-            onClick={() => openModal("attendance")}
-            className="bg-blue-500 text-white px-4 py-2 rounded-md mb-4 hover:bg-blue-600"
-          >
-            إضافة حضور/انصراف
-          </button>
-          <div className="overflow-x-auto">
-            <table className="min-w-full bg-white rounded-lg shadow overflow-hidden">
-              <thead className="bg-gray-200">
+          <div className="flex justify-between items-center mb-4">
+            <h2 className="text-2xl font-bold text-gray-900">الحضور والانصراف</h2>
+            <button
+              onClick={() => openModal("attendance")}
+              className="bg-teal-600 text-white px-4 py-2 rounded-md hover:bg-teal-700"
+            >
+              إضافة سجل حضور
+            </button>
+          </div>
+          <div className="bg-white p-6 rounded-lg shadow">
+            <table className="min-w-full divide-y divide-gray-200">
+              <thead className="bg-gray-50">
                 <tr>
-                  <th className="py-2 px-4 text-right text-gray-600">الموظف</th>
-                  <th className="py-2 px-4 text-right text-gray-600">التاريخ</th>
-                  <th className="py-2 px-4 text-right text-gray-600">وقت الحضور</th>
-                  <th className="py-2 px-4 text-right text-gray-600">وقت الانصراف</th>
-                  <th className="py-2 px-4 text-right text-gray-600">الإجراءات</th>
+                  <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">الموظف</th>
+                  <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">التاريخ</th>
+                  <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">وقت الحضور</th>
+                  <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">وقت الانصراف</th>
+                  <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">ساعات العمل</th>
+                  <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">الإجراءات</th>
                 </tr>
               </thead>
-              <tbody>
+              <tbody className="bg-white divide-y divide-gray-200">
                 {attendances.map((attendance) => (
-                  <tr key={attendance.id} className="border-b border-gray-200 last:border-b-0">
-                    <td className="py-2 px-4">{attendance.employee_name}</td>
-                    <td className="py-2 px-4">{attendance.date}</td>
-                    <td className="py-2 px-4">{attendance.check_in}</td>
-                    <td className="py-2 px-4">{attendance.check_out}</td>
-                    <td className="py-2 px-4">
+                  <tr key={attendance.id}>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+                      {attendance.employee?.name || 'غير محدد'}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                      {attendance.date ? new Date(attendance.date).toLocaleDateString('ar-SA') : 'غير محدد'}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                      {attendance.check_in || 'غير محدد'}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                      {attendance.check_out || 'لم ينصرف'}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                      {attendance.total_hours || 'غير محسوب'}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
                       <button
                         onClick={() => openModal("attendance", attendance)}
-                        className="text-blue-600 hover:text-blue-800 mr-2"
+                        className="text-indigo-600 hover:text-indigo-900 ml-2"
                       >
                         تعديل
                       </button>
                       <button
                         onClick={() => handleDelete("attendance", attendance.id)}
-                        className="text-red-600 hover:text-red-800"
+                        className="text-red-600 hover:text-red-900"
                       >
                         حذف
                       </button>
@@ -866,245 +958,282 @@ const Payroll = () => {
         </div>
       )}
 
-      {/* Modal for Add/Edit */}
+      {/* Modal */}
       {showModal && (
-        <div className="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full flex justify-center items-center">
-          <div className="bg-white p-8 rounded-lg shadow-xl w-full max-w-md">
-            <h2 className="text-2xl font-bold mb-4">
-              {modalType === "advance" && "إضافة / تعديل سلفة"}
-              {modalType === "penalty" && "إضافة / تعديل جزاء"}
-              {modalType === "allowance" && "إضافة / تعديل بدل"}
-              {modalType === "otherPayment" && "إضافة / تعديل دفعة أخرى"}
-              {modalType === "custody" && "إضافة / تعديل عهدة"}
-              {modalType === "attendance" && "إضافة / تعديل حضور وانصراف"}
-            </h2>
-            <form onSubmit={handleSubmit}>
-              <div className="mb-4">
-                <label htmlFor="employee_id" className="block text-gray-700 text-sm font-bold mb-2">الموظف:</label>
-                <select
-                  id="employee_id"
-                  name="employee_id"
-                  value={formData.employee_id || ''}
-                  onChange={(e) => setFormData({ ...formData, employee_id: e.target.value })}
-                  className="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
-                  required
-                >
-                  <option value="">اختر موظف</option>
-                  {employees.map(emp => (
-                    <option key={emp.id} value={emp.id}>{emp.name}</option>
-                  ))}
-                </select>
-              </div>
-
-              {(modalType === "advance" || modalType === "penalty" || modalType === "allowance" || modalType === "otherPayment") && (
-                <div className="mb-4">
-                  <label htmlFor="amount" className="block text-gray-700 text-sm font-bold mb-2">المبلغ:</label>
-                  <input
-                    type="number"
-                    id="amount"
-                    name="amount"
-                    value={formData.amount || ''}
-                    onChange={(e) => setFormData({ ...formData, amount: e.target.value })}
-                    className="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
-                    required
-                  />
-                </div>
-              )}
-
-              {(modalType === "advance" || modalType === "penalty" || modalType === "custody") && (
-                <div className="mb-4">
-                  <label htmlFor="date" className="block text-gray-700 text-sm font-bold mb-2">التاريخ:</label>
-                  <input
-                    type="date"
-                    id="date"
-                    name="date"
-                    value={formData.date || new Date().toISOString().slice(0, 10)}
-                    onChange={(e) => setFormData({ ...formData, date: e.target.value })}
-                    className="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
-                    required
-                  />
-                </div>
-              )}
-
-              {modalType === "advance" && (
-                <>
-                  <div className="mb-4">
-                    <label htmlFor="repayment_status" className="block text-gray-700 text-sm font-bold mb-2">حالة السداد:</label>
-                    <select
-                      id="repayment_status"
-                      name="repayment_status"
-                      value={formData.repayment_status || 'pending'}
-                      onChange={(e) => setFormData({ ...formData, repayment_status: e.target.value })}
-                      className="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
-                      required
-                    >
-                      <option value="pending">معلقة</option>
-                      <option value="paid">مدفوعة</option>
-                    </select>
-                  </div>
-                  <div className="mb-4">
-                    <label htmlFor="installment_months" className="block text-gray-700 text-sm font-bold mb-2">عدد أشهر التقسيط:</label>
-                    <input
-                      type="number"
-                      id="installment_months"
-                      name="installment_months"
-                      value={formData.installment_months || 1} // Changed default to 1
-                      onChange={(e) => setFormData({ ...formData, installment_months: e.target.value })}
-                      className="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
-                      required
-                    />
-                  </div>
-                </>
-              )}
-
-              {modalType === "penalty" && (
-                <>
-                  <div className="mb-4">
-                    <label htmlFor="reason" className="block text-gray-700 text-sm font-bold mb-2">السبب:</label>
-                    <input
-                      type="text"
-                      id="reason"
-                      name="reason"
-                      value={formData.reason || ''}
-                      onChange={(e) => setFormData({ ...formData, reason: e.target.value })}
-                      className="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
-                      required
-                    />
-                  </div>
-                  <div className="mb-4">
-                    <label htmlFor="type" className="block text-gray-700 text-sm font-bold mb-2">النوع:</label>
-                    <input
-                      type="text"
-                      id="type"
-                      name="type"
-                      value={formData.type || 'خصم'} // Added default type for penalty
-                      onChange={(e) => setFormData({ ...formData, type: e.target.value })}
-                      className="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
-                      required
-                    />
-                  </div>
-                </>
-              )}
-
-              {(modalType === "allowance" || modalType === "otherPayment") && (
-                <div className="mb-4">
-                  <label htmlFor="type" className="block text-gray-700 text-sm font-bold mb-2">النوع:</label>
-                  <input
-                    type="text"
-                    id="type"
-                    name="type"
-                    value={formData.type || ''}
-                    onChange={(e) => setFormData({ ...formData, type: e.target.value })}
-                    className="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
-                    required
-                  />
-                </div>
-              )}
-
-              {(modalType === "allowance" || modalType === "otherPayment") && (
-                <div className="mb-4">
-                  <label htmlFor="calculation_type" className="block text-gray-700 text-sm font-bold mb-2">نوع الحساب:</label>
+        <div className="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50">
+          <div className="relative top-20 mx-auto p-5 border w-96 shadow-lg rounded-md bg-white">
+            <div className="mt-3 text-center">
+              <h3 className="text-lg font-medium text-gray-900 mb-4">
+                {modalType === "advance" && "إضافة/تعديل سلفة"}
+                {modalType === "penalty" && "إضافة/تعديل جزاء"}
+                {modalType === "allowance" && "إضافة/تعديل بدل"}
+                {modalType === "otherPayment" && "إضافة/تعديل مدفوعة أخرى"}
+                {modalType === "custody" && "إضافة/تعديل عهدة"}
+                {modalType === "attendance" && "إضافة/تعديل حضور"}
+              </h3>
+              <form onSubmit={handleSubmit} className="space-y-4">
+                {/* Employee Selection */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">الموظف</label>
                   <select
-                    id="calculation_type"
-                    name="calculation_type"
-                    value={formData.calculation_type || 'fixed'}
-                    onChange={(e) => setFormData({ ...formData, calculation_type: e.target.value })}
-                    className="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
+                    value={formData.employee_id || ""}
+                    onChange={(e) => setFormData({ ...formData, employee_id: e.target.value })}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                     required
                   >
-                    <option value="fixed">ثابت</option>
-                    <option value="percentage">نسبة مئوية</option>
+                    <option value="">اختر موظف</option>
+                    {employees.map((employee) => (
+                      <option key={employee.id} value={employee.id}>
+                        {employee.name}
+                      </option>
+                    ))}
                   </select>
                 </div>
-              )}
 
-              {(modalType === "allowance" || modalType === "otherPayment") && (
-                <div className="mb-4">
-                  <label htmlFor="payment_date" className="block text-gray-700 text-sm font-bold mb-2">تاريخ الدفع:</label>
-                  <input
-                    type="date"
-                    id="payment_date"
-                    name="payment_date"
-                    value={formData.payment_date || new Date().toISOString().slice(0, 10)}
-                    onChange={(e) => setFormData({ ...formData, payment_date: e.target.value })}
-                    className="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
-                    required
-                  />
+                {/* Common fields based on modal type */}
+                {(modalType === "advance" || modalType === "penalty") && (
+                  <>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">المبلغ</label>
+                      <input
+                        type="number"
+                        step="0.01"
+                        value={formData.amount || ""}
+                        onChange={(e) => setFormData({ ...formData, amount: e.target.value })}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        required
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">التاريخ</label>
+                      <input
+                        type="date"
+                        value={formData.date || ""}
+                        onChange={(e) => setFormData({ ...formData, date: e.target.value })}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        required
+                      />
+                    </div>
+                  </>
+                )}
+
+                {modalType === "advance" && (
+                  <>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">عدد أشهر التقسيط</label>
+                      <input
+                        type="number"
+                        value={formData.installment_months || ""}
+                        onChange={(e) => setFormData({ ...formData, installment_months: e.target.value })}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        required
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">حالة السداد</label>
+                      <select
+                        value={formData.repayment_status || "pending"}
+                        onChange={(e) => setFormData({ ...formData, repayment_status: e.target.value })}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        required
+                      >
+                        <option value="pending">معلق</option>
+                        <option value="paid">مسدد</option>
+                        <option value="overdue">متأخر</option>
+                      </select>
+                    </div>
+                  </>
+                )}
+
+                {modalType === "penalty" && (
+                  <>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">نوع الجزاء</label>
+                      <input
+                        type="text"
+                        value={formData.type || ""}
+                        onChange={(e) => setFormData({ ...formData, type: e.target.value })}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        required
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">السبب</label>
+                      <textarea
+                        value={formData.reason || ""}
+                        onChange={(e) => setFormData({ ...formData, reason: e.target.value })}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        rows="3"
+                      />
+                    </div>
+                  </>
+                )}
+
+                {(modalType === "allowance" || modalType === "otherPayment") && (
+                  <>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">النوع</label>
+                      <select
+                        value={formData.type || ""}
+                        onChange={(e) => setFormData({ ...formData, type: e.target.value })}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        required
+                      >
+                        <option value="">اختر النوع</option>
+                        {modalType === "allowance" ? (
+                          <>
+                            <option value="housing_allowance">بدل سكن</option>
+                            <option value="transportation_allowance">بدل مواصلات</option>
+                            <option value="food_allowance">بدل طعام</option>
+                            <option value="other_allowance">بدل آخر</option>
+                          </>
+                        ) : (
+                          <>
+                            <option value="bonus">مكافأة</option>
+                            <option value="commission">عمولة</option>
+                            <option value="overtime">ساعات إضافية</option>
+                            <option value="other">أخرى</option>
+                          </>
+                        )}
+                      </select>
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">المبلغ</label>
+                      <input
+                        type="number"
+                        step="0.01"
+                        value={formData.amount || ""}
+                        onChange={(e) => setFormData({ ...formData, amount: e.target.value })}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        required
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">نوع الحساب</label>
+                      <select
+                        value={formData.calculation_type || "fixed"}
+                        onChange={(e) => setFormData({ ...formData, calculation_type: e.target.value })}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        required
+                      >
+                        <option value="fixed">ثابت</option>
+                        <option value="percentage">نسبة مئوية</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">تاريخ الدفع</label>
+                      <input
+                        type="date"
+                        value={formData.payment_date || ""}
+                        onChange={(e) => setFormData({ ...formData, payment_date: e.target.value })}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        required
+                      />
+                    </div>
+                  </>
+                )}
+
+                {modalType === "custody" && (
+                  <>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">اسم العهدة</label>
+                      <input
+                        type="text"
+                        value={formData.item_name || ""}
+                        onChange={(e) => setFormData({ ...formData, item_name: e.target.value })}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        required
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">القيمة</label>
+                      <input
+                        type="number"
+                        step="0.01"
+                        value={formData.value || ""}
+                        onChange={(e) => setFormData({ ...formData, value: e.target.value })}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        required
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">تاريخ الإصدار</label>
+                      <input
+                        type="date"
+                        value={formData.issue_date || ""}
+                        onChange={(e) => setFormData({ ...formData, issue_date: e.target.value })}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        required
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">الحالة</label>
+                      <select
+                        value={formData.status || "issued"}
+                        onChange={(e) => setFormData({ ...formData, status: e.target.value })}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        required
+                      >
+                        <option value="issued">مُصدرة</option>
+                        <option value="returned">مُرجعة</option>
+                        <option value="lost">مفقودة</option>
+                      </select>
+                    </div>
+                  </>
+                )}
+
+                {modalType === "attendance" && (
+                  <>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">التاريخ</label>
+                      <input
+                        type="date"
+                        value={formData.date || ""}
+                        onChange={(e) => setFormData({ ...formData, date: e.target.value })}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        required
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">وقت الحضور</label>
+                      <input
+                        type="datetime-local"
+                        value={formData.check_in || ""}
+                        onChange={(e) => setFormData({ ...formData, check_in: e.target.value })}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        required
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">وقت الانصراف</label>
+                      <input
+                        type="datetime-local"
+                        value={formData.check_out || ""}
+                        onChange={(e) => setFormData({ ...formData, check_out: e.target.value })}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      />
+                    </div>
+                  </>
+                )}
+
+                <div className="flex justify-end space-x-2 pt-4">
+                  <button
+                    type="button"
+                    onClick={resetForm}
+                    className="px-4 py-2 bg-gray-300 text-gray-700 rounded-md hover:bg-gray-400"
+                  >
+                    إلغاء
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={loading}
+                    className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50"
+                  >
+                    {loading ? "جاري الحفظ..." : "حفظ"}
+                  </button>
                 </div>
-              )}
-
-              {modalType === "custody" && (
-                <div className="mb-4">
-                  <label htmlFor="item_name" className="block text-gray-700 text-sm font-bold mb-2">اسم العهدة:</label>
-                  <input
-                    type="text"
-                    id="item_name"
-                    name="item_name"
-                    value={formData.item_name || ''}
-                    onChange={(e) => setFormData({ ...formData, item_name: e.target.value })}
-                    className="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
-                    required
-                  />
-                </div>
-              )}
-
-              {modalType === "attendance" && (
-                <>
-                  <div className="mb-4">
-                    <label htmlFor="attendance_date" className="block text-gray-700 text-sm font-bold mb-2">التاريخ:</label>
-                    <input
-                      type="date"
-                      id="attendance_date"
-                      name="date"
-                      value={formData.date || new Date().toISOString().slice(0, 10)}
-                      onChange={(e) => setFormData({ ...formData, date: e.target.value })}
-                      className="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
-                      required
-                    />
-                  </div>
-                  <div className="mb-4">
-                    <label htmlFor="check_in" className="block text-gray-700 text-sm font-bold mb-2">وقت الحضور:</label>
-                    <input
-                      type="datetime-local"
-                      id="check_in"
-                      name="check_in"
-                      value={formData.check_in || new Date().toISOString().slice(0, 16)}
-                      onChange={(e) => setFormData({ ...formData, check_in: e.target.value })}
-                      className="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
-                      required
-                    />
-                  </div>
-                  <div className="mb-4">
-                    <label htmlFor="check_out" className="block text-gray-700 text-sm font-bold mb-2">وقت الانصراف:</label>
-                    <input
-                      type="datetime-local"
-                      id="check_out"
-                      name="check_out"
-                      value={formData.check_out || ''}
-                      onChange={(e) => setFormData({ ...formData, check_out: e.target.value })}
-                      className="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
-                    />
-                  </div>
-                </>
-              )}
-
-              <div className="flex justify-end">
-                <button
-                  type="button"
-                  onClick={resetForm}
-                  className="bg-gray-300 text-gray-800 px-4 py-2 rounded-md mr-2 hover:bg-gray-400"
-                >
-                  إلغاء
-                </button>
-                <button
-                  type="submit"
-                  className="bg-blue-500 text-white px-4 py-2 rounded-md hover:bg-blue-600"
-                  disabled={loading}
-                >
-                  {loading ? "جاري الحفظ..." : "حفظ"}
-                </button>
-              </div>
-            </form>
+              </form>
+            </div>
           </div>
         </div>
       )}
@@ -1113,5 +1242,4 @@ const Payroll = () => {
 };
 
 export default Payroll;
-
 
