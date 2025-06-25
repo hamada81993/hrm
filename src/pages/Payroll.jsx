@@ -153,7 +153,7 @@ const Payroll = () => {
       let endpoint = "";
       let dataToSend = { ...formData };
 
-      // Add default values based on modal type to fix validation errors
+      // Add default values and format data based on modal type to fix validation errors
       switch (modalType) {
         case "advance":
           endpoint = `${API_BASE_URL}/advances`;
@@ -175,7 +175,9 @@ const Payroll = () => {
           dataToSend = {
             ...formData,
             calculation_type: formData.calculation_type || 'fixed',
-            payment_date: formData.payment_date || new Date().toISOString().slice(0, 10)
+            payment_date: formData.payment_date || new Date().toISOString().slice(0, 10),
+            // Ensure type is a valid allowance type
+            type: formData.type || 'housing_allowance'
           };
           break;
         case "otherPayment":
@@ -183,7 +185,9 @@ const Payroll = () => {
           dataToSend = {
             ...formData,
             calculation_type: formData.calculation_type || 'fixed',
-            payment_date: formData.payment_date || new Date().toISOString().slice(0, 10)
+            payment_date: formData.payment_date || new Date().toISOString().slice(0, 10),
+            // Ensure type is a valid payment type
+            type: formData.type || 'bonus'
           };
           break;
         case "custody":
@@ -196,9 +200,27 @@ const Payroll = () => {
           break;
         case "attendance":
           endpoint = `${API_BASE_URL}/attendances`;
+          // Format check_in and check_out to H:i format (24-hour time)
+          let checkInTime = '';
+          let checkOutTime = '';
+          
+          if (formData.check_in) {
+            const checkInDate = new Date(formData.check_in);
+            checkInTime = checkInDate.toTimeString().slice(0, 5); // HH:MM format
+          } else {
+            const now = new Date();
+            checkInTime = now.toTimeString().slice(0, 5);
+          }
+          
+          if (formData.check_out) {
+            const checkOutDate = new Date(formData.check_out);
+            checkOutTime = checkOutDate.toTimeString().slice(0, 5); // HH:MM format
+          }
+          
           dataToSend = {
             ...formData,
-            check_in: formData.check_in || new Date().toISOString().slice(0, 19).replace('T', ' '),
+            check_in: checkInTime,
+            check_out: checkOutTime || null,
             date: formData.date || new Date().toISOString().slice(0, 10)
           };
           break;
@@ -304,11 +326,19 @@ const Payroll = () => {
         };
         break;
       case "allowance":
+        initialFormData = {
+          ...item,
+          calculation_type: item.calculation_type || 'fixed',
+          payment_date: item.payment_date || new Date().toISOString().slice(0, 10),
+          type: item.type || 'housing_allowance'
+        };
+        break;
       case "otherPayment":
         initialFormData = {
           ...item,
           calculation_type: item.calculation_type || 'fixed',
-          payment_date: item.payment_date || new Date().toISOString().slice(0, 10)
+          payment_date: item.payment_date || new Date().toISOString().slice(0, 10),
+          type: item.type || 'bonus'
         };
         break;
       case "custody":
@@ -319,9 +349,36 @@ const Payroll = () => {
         };
         break;
       case "attendance":
+        // Format datetime-local values for the form
+        let checkInValue = '';
+        let checkOutValue = '';
+        
+        if (item.check_in) {
+          // If it's already in H:i format, convert to datetime-local
+          if (item.check_in.includes(':') && !item.check_in.includes('T')) {
+            const today = item.date || new Date().toISOString().slice(0, 10);
+            checkInValue = `${today}T${item.check_in}`;
+          } else {
+            checkInValue = item.check_in;
+          }
+        } else {
+          const now = new Date();
+          checkInValue = now.toISOString().slice(0, 16);
+        }
+        
+        if (item.check_out) {
+          if (item.check_out.includes(':') && !item.check_out.includes('T')) {
+            const today = item.date || new Date().toISOString().slice(0, 10);
+            checkOutValue = `${today}T${item.check_out}`;
+          } else {
+            checkOutValue = item.check_out;
+          }
+        }
+        
         initialFormData = {
           ...item,
-          check_in: item.check_in || new Date().toISOString().slice(0, 19).replace('T', ' '),
+          check_in: checkInValue,
+          check_out: checkOutValue,
           date: item.date || new Date().toISOString().slice(0, 10)
         };
         break;
@@ -663,7 +720,10 @@ const Payroll = () => {
                       {allowance.employee?.name || 'غير محدد'}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                      {allowance.type || 'غير محدد'}
+                      {allowance.type === 'housing_allowance' ? 'بدل سكن' :
+                       allowance.type === 'transportation_allowance' ? 'بدل مواصلات' :
+                       allowance.type === 'food_allowance' ? 'بدل طعام' :
+                       allowance.type || 'غير محدد'}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                       {parseFloat(allowance.amount || '0').toLocaleString()} ريال
@@ -727,7 +787,10 @@ const Payroll = () => {
                       {payment.employee?.name || 'غير محدد'}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                      {payment.type || 'غير محدد'}
+                      {payment.type === 'bonus' ? 'مكافأة' :
+                       payment.type === 'commission' ? 'عمولة' :
+                       payment.type === 'overtime' ? 'ساعات إضافية' :
+                       payment.type || 'غير محدد'}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                       {parseFloat(payment.amount || '0').toLocaleString()} ريال
@@ -865,10 +928,10 @@ const Payroll = () => {
                       {attendance.date ? new Date(attendance.date).toLocaleDateString('ar-SA') : 'غير محدد'}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                      {attendance.check_in ? new Date(attendance.check_in).toLocaleTimeString('ar-SA') : 'غير محدد'}
+                      {attendance.check_in || 'غير محدد'}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                      {attendance.check_out ? new Date(attendance.check_out).toLocaleTimeString('ar-SA') : 'لم ينصرف'}
+                      {attendance.check_out || 'لم ينصرف'}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                       {attendance.total_hours || 'غير محسوب'}
@@ -1010,13 +1073,29 @@ const Payroll = () => {
                   <>
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-1">النوع</label>
-                      <input
-                        type="text"
+                      <select
                         value={formData.type || ""}
                         onChange={(e) => setFormData({ ...formData, type: e.target.value })}
                         className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                         required
-                      />
+                      >
+                        <option value="">اختر النوع</option>
+                        {modalType === "allowance" ? (
+                          <>
+                            <option value="housing_allowance">بدل سكن</option>
+                            <option value="transportation_allowance">بدل مواصلات</option>
+                            <option value="food_allowance">بدل طعام</option>
+                            <option value="other_allowance">بدل آخر</option>
+                          </>
+                        ) : (
+                          <>
+                            <option value="bonus">مكافأة</option>
+                            <option value="commission">عمولة</option>
+                            <option value="overtime">ساعات إضافية</option>
+                            <option value="other">أخرى</option>
+                          </>
+                        )}
+                      </select>
                     </div>
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-1">المبلغ</label>
