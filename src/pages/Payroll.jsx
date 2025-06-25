@@ -163,15 +163,18 @@ const Payroll = () => {
           dataToSend = {
             ...formData,
             date: formData.date || new Date().toISOString().slice(0, 10),
-            repayment_status: formData.repayment_status || 'pending'
+            // Ensure repayment_status is valid, 'pending' is a common default
+            repayment_status: formData.repayment_status || 'pending',
+            // Ensure installment_months is present and a number
+            installment_months: parseInt(formData.installment_months) || 1 // Default to 1 if not provided
           };
-          // Removed default type as it caused validation issues
           break;
         case "penalty":
           endpoint = `${API_BASE_URL}/penalties`;
           dataToSend = {
             ...formData,
-            date: formData.date || new Date().toISOString().slice(0, 10)
+            date: formData.date || new Date().toISOString().slice(0, 10),
+            type: formData.type || 'خصم' // Added default type for penalty
           };
           break;
         case "allowance":
@@ -180,7 +183,6 @@ const Payroll = () => {
             ...formData,
             calculation_type: formData.calculation_type || 'fixed',
             payment_date: formData.payment_date || new Date().toISOString().slice(0, 10),
-            // Ensure type is a valid allowance type
             type: formData.type || 'housing_allowance'
           };
           break;
@@ -190,7 +192,7 @@ const Payroll = () => {
             ...formData,
             calculation_type: formData.calculation_type || 'fixed',
             payment_date: formData.payment_date || new Date().toISOString().slice(0, 10),
-            // Removed default type as it caused validation issues
+            type: formData.type || 'bonus' // Added default type for otherPayment
           };
           break;
         case "custody":
@@ -203,7 +205,6 @@ const Payroll = () => {
           break;
         case "attendance":
           endpoint = `${API_BASE_URL}/attendances`;
-          // Format check_in and check_out to H:i format (24-hour time)
           const formatTime = (date) => {
             return date.toTimeString().slice(0, 5); // HH:MM
           };
@@ -259,7 +260,6 @@ const Payroll = () => {
       }
     } catch (error) {
       console.error("Error submitting form:", error);
-      // Show error message to user
       if (error.response && error.response.data && error.response.data.errors) {
         console.error("Validation errors:", error.response.data.errors);
         alert("خطأ في التحقق من البيانات: " + JSON.stringify(error.response.data.errors));
@@ -323,7 +323,6 @@ const Payroll = () => {
 
   const openModal = (type, item = {}) => {
     setModalType(type);
-    // Initialize form data with default values based on type
     let initialFormData = { ...item };
     
     switch (type) {
@@ -331,9 +330,16 @@ const Payroll = () => {
         initialFormData = {
           ...item,
           date: item.date || new Date().toISOString().slice(0, 10),
-          repayment_status: item.repayment_status || 'pending'
+          repayment_status: item.repayment_status || 'pending',
+          installment_months: item.installment_months || 1 // Default to 1 if not provided
         };
-        // Removed default type
+        break;
+      case "penalty":
+        initialFormData = {
+          ...item,
+          date: item.date || new Date().toISOString().slice(0, 10),
+          type: item.type || 'خصم' // Default type for penalty
+        };
         break;
       case "allowance":
         initialFormData = {
@@ -348,8 +354,8 @@ const Payroll = () => {
           ...item,
           calculation_type: item.calculation_type || 'fixed',
           payment_date: item.payment_date || new Date().toISOString().slice(0, 10),
+          type: item.type || 'bonus' // Default type for otherPayment
         };
-        // Removed default type
         break;
       case "custody":
         initialFormData = {
@@ -359,19 +365,15 @@ const Payroll = () => {
         };
         break;
       case "attendance":
-        // Format datetime-local values for the form
         let checkInValue = '';
         let checkOutValue = '';
         
-        // Helper to format time for datetime-local input
         const formatToDateTimeLocal = (dateStr, timeStr) => {
           if (!dateStr || !timeStr) return '';
-          // Assuming timeStr is HH:MM
           return `${dateStr}T${timeStr}`;
         };
 
         if (item.check_in) {
-          // If it's already in H:i format, convert to datetime-local
           if (item.check_in.includes(':') && !item.check_in.includes('T')) {
             const today = item.date || new Date().toISOString().slice(0, 10);
             checkInValue = formatToDateTimeLocal(today, item.check_in);
@@ -870,8 +872,8 @@ const Payroll = () => {
           <div className="bg-white p-8 rounded-lg shadow-xl w-full max-w-md">
             <h2 className="text-2xl font-bold mb-4">
               {modalType === "advance" && "إضافة / تعديل سلفة"}
-              {modalType === "penalty" && "إضافة / تعديل جزاء"
-              }{modalType === "allowance" && "إضافة / تعديل بدل"}
+              {modalType === "penalty" && "إضافة / تعديل جزاء"}
+              {modalType === "allowance" && "إضافة / تعديل بدل"}
               {modalType === "otherPayment" && "إضافة / تعديل دفعة أخرى"}
               {modalType === "custody" && "إضافة / تعديل عهدة"}
               {modalType === "attendance" && "إضافة / تعديل حضور وانصراف"}
@@ -925,35 +927,63 @@ const Payroll = () => {
               )}
 
               {modalType === "advance" && (
-                <div className="mb-4">
-                  <label htmlFor="repayment_status" className="block text-gray-700 text-sm font-bold mb-2">حالة السداد:</label>
-                  <select
-                    id="repayment_status"
-                    name="repayment_status"
-                    value={formData.repayment_status || 'pending'}
-                    onChange={(e) => setFormData({ ...formData, repayment_status: e.target.value })}
-                    className="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
-                    required
-                  >
-                    <option value="pending">معلقة</option>
-                    <option value="paid">مدفوعة</option>
-                  </select>
-                </div>
+                <>
+                  <div className="mb-4">
+                    <label htmlFor="repayment_status" className="block text-gray-700 text-sm font-bold mb-2">حالة السداد:</label>
+                    <select
+                      id="repayment_status"
+                      name="repayment_status"
+                      value={formData.repayment_status || 'pending'}
+                      onChange={(e) => setFormData({ ...formData, repayment_status: e.target.value })}
+                      className="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
+                      required
+                    >
+                      <option value="pending">معلقة</option>
+                      <option value="paid">مدفوعة</option>
+                    </select>
+                  </div>
+                  <div className="mb-4">
+                    <label htmlFor="installment_months" className="block text-gray-700 text-sm font-bold mb-2">عدد أشهر التقسيط:</label>
+                    <input
+                      type="number"
+                      id="installment_months"
+                      name="installment_months"
+                      value={formData.installment_months || 1} // Changed default to 1
+                      onChange={(e) => setFormData({ ...formData, installment_months: e.target.value })}
+                      className="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
+                      required
+                    />
+                  </div>
+                </>
               )}
 
               {modalType === "penalty" && (
-                <div className="mb-4">
-                  <label htmlFor="reason" className="block text-gray-700 text-sm font-bold mb-2">السبب:</label>
-                  <input
-                    type="text"
-                    id="reason"
-                    name="reason"
-                    value={formData.reason || ''}
-                    onChange={(e) => setFormData({ ...formData, reason: e.target.value })}
-                    className="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
-                    required
-                  />
-                </div>
+                <>
+                  <div className="mb-4">
+                    <label htmlFor="reason" className="block text-gray-700 text-sm font-bold mb-2">السبب:</label>
+                    <input
+                      type="text"
+                      id="reason"
+                      name="reason"
+                      value={formData.reason || ''}
+                      onChange={(e) => setFormData({ ...formData, reason: e.target.value })}
+                      className="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
+                      required
+                    />
+                  </div>
+                  <div className="mb-4">
+                    <label htmlFor="type" className="block text-gray-700 text-sm font-bold mb-2">النوع:</label>
+                    <input
+                      type="text"
+                      id="type"
+                      name="type"
+                      value={formData.type || 'خصم'} // Added default type for penalty
+                      onChange={(e) => setFormData({ ...formData, type: e.target.value })}
+                      className="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
+                      required
+                    />
+                  </div>
+                </>
               )}
 
               {(modalType === "allowance" || modalType === "otherPayment") && (
