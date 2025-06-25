@@ -19,6 +19,8 @@ const Payroll = () => {
   const [showModal, setShowModal] = useState(false);
   const [modalType, setModalType] = useState("");
   const [formData, setFormData] = useState({});
+  const [errors, setErrors] = useState({});
+  const [successMessage, setSuccessMessage] = useState("");
 
   useEffect(() => {
     fetchEmployees();
@@ -30,6 +32,14 @@ const Payroll = () => {
     fetchCustodies();
     fetchAttendances();
   }, []);
+
+  // Clear messages after 5 seconds
+  useEffect(() => {
+    if (successMessage) {
+      const timer = setTimeout(() => setSuccessMessage(""), 5000);
+      return () => clearTimeout(timer);
+    }
+  }, [successMessage]);
 
   const getAuthHeaders = () => {
     const token = localStorage.getItem("token");
@@ -47,6 +57,7 @@ const Payroll = () => {
       setEmployees(response.data);
     } catch (error) {
       console.error("Error fetching employees:", error);
+      setErrors({ general: "خطأ في جلب بيانات الموظفين" });
     }
   };
 
@@ -140,89 +151,224 @@ const Payroll = () => {
       setSelectedEmployee(response.data.employee);
     } catch (error) {
       console.error("Error fetching salary details:", error);
+      setErrors({ general: "خطأ في جلب تفاصيل الراتب" });
     } finally {
       setLoading(false);
     }
   };
 
+  // Validation functions
+  const validateFormData = (data, type) => {
+    const newErrors = {};
+
+    // Common validations
+    if (!data.employee_id) {
+      newErrors.employee_id = "يجب اختيار موظف";
+    }
+
+    switch (type) {
+      case "advance":
+        if (!data.amount || parseFloat(data.amount) <= 0) {
+          newErrors.amount = "يجب إدخال مبلغ صحيح";
+        }
+        if (!data.installment_months || parseInt(data.installment_months) <= 0) {
+          newErrors.installment_months = "يجب إدخال عدد أشهر صحيح";
+        }
+        if (!data.date) {
+          newErrors.date = "يجب إدخال التاريخ";
+        }
+        break;
+
+      case "penalty":
+        if (!data.amount || parseFloat(data.amount) <= 0) {
+          newErrors.amount = "يجب إدخال مبلغ صحيح";
+        }
+        if (!data.type || data.type.trim() === "") {
+          newErrors.type = "يجب إدخال نوع الجزاء";
+        }
+        if (!data.date) {
+          newErrors.date = "يجب إدخال التاريخ";
+        }
+        break;
+
+      case "allowance":
+      case "otherPayment":
+        if (!data.type) {
+          newErrors.type = "يجب اختيار النوع";
+        }
+        if (!data.amount || parseFloat(data.amount) <= 0) {
+          newErrors.amount = "يجب إدخال مبلغ صحيح";
+        }
+        if (!data.payment_date) {
+          newErrors.payment_date = "يجب إدخال تاريخ الدفع";
+        }
+        break;
+
+      case "custody":
+        if (!data.item_name || data.item_name.trim() === "") {
+          newErrors.item_name = "يجب إدخال اسم العهدة";
+        }
+        if (!data.value || parseFloat(data.value) <= 0) {
+          newErrors.value = "يجب إدخال قيمة صحيحة";
+        }
+        if (!data.issue_date) {
+          newErrors.issue_date = "يجب إدخال تاريخ الإصدار";
+        }
+        break;
+
+      case "attendance":
+        if (!data.date) {
+          newErrors.date = "يجب إدخال التاريخ";
+        }
+        if (!data.check_in) {
+          newErrors.check_in = "يجب إدخال وقت الحضور";
+        }
+        // Validate time format if check_out is provided
+        if (data.check_out && data.check_in && data.check_out <= data.check_in) {
+          newErrors.check_out = "وقت الانصراف يجب أن يكون بعد وقت الحضور";
+        }
+        break;
+    }
+
+    return newErrors;
+  };
+
+  const formatDataForSubmission = (data, type) => {
+    let formattedData = { ...data };
+
+    // Ensure numeric fields are properly formatted
+    if (formattedData.amount) {
+      formattedData.amount = parseFloat(formattedData.amount);
+    }
+    if (formattedData.value) {
+      formattedData.value = parseFloat(formattedData.value);
+    }
+    if (formattedData.installment_months) {
+      formattedData.installment_months = parseInt(formattedData.installment_months);
+    }
+
+    switch (type) {
+      case "advance":
+        formattedData = {
+          ...formattedData,
+          date: formattedData.date || new Date().toISOString().slice(0, 10),
+          repayment_status: formattedData.repayment_status || 'pending',
+          total_amount: formattedData.amount,
+          monthly_installment: formattedData.amount && formattedData.installment_months 
+            ? (parseFloat(formattedData.amount) / parseInt(formattedData.installment_months)).toFixed(2)
+            : 0
+        };
+        break;
+
+      case "penalty":
+        formattedData = {
+          ...formattedData,
+          date: formattedData.date || new Date().toISOString().slice(0, 10)
+        };
+        break;
+
+      case "allowance":
+        formattedData = {
+          ...formattedData,
+          calculation_type: formattedData.calculation_type || 'fixed',
+          payment_date: formattedData.payment_date || new Date().toISOString().slice(0, 10),
+          type: formattedData.type || 'housing_allowance'
+        };
+        break;
+
+      case "otherPayment":
+        formattedData = {
+          ...formattedData,
+          calculation_type: formattedData.calculation_type || 'fixed',
+          payment_date: formattedData.payment_date || new Date().toISOString().slice(0, 10),
+          type: formattedData.type || 'bonus'
+        };
+        break;
+
+      case "custody":
+        formattedData = {
+          ...formattedData,
+          item_name: formattedData.item_name || 'عهدة',
+          issue_date: formattedData.issue_date || new Date().toISOString().slice(0, 10),
+          status: formattedData.status || 'issued'
+        };
+        break;
+
+      case "attendance":
+        // Format check_in and check_out to H:i format (24-hour time)
+        let checkInTime = '';
+        let checkOutTime = '';
+        
+        if (formattedData.check_in) {
+          if (formattedData.check_in.includes('T')) {
+            // datetime-local format
+            const checkInDate = new Date(formattedData.check_in);
+            checkInTime = checkInDate.toTimeString().slice(0, 5); // HH:MM format
+          } else {
+            // Already in time format
+            checkInTime = formattedData.check_in;
+          }
+        }
+        
+        if (formattedData.check_out) {
+          if (formattedData.check_out.includes('T')) {
+            // datetime-local format
+            const checkOutDate = new Date(formattedData.check_out);
+            checkOutTime = checkOutDate.toTimeString().slice(0, 5); // HH:MM format
+          } else {
+            // Already in time format
+            checkOutTime = formattedData.check_out;
+          }
+        }
+        
+        formattedData = {
+          ...formattedData,
+          check_in: checkInTime,
+          check_out: checkOutTime || null,
+          date: formattedData.date || new Date().toISOString().slice(0, 10)
+        };
+        break;
+    }
+
+    return formattedData;
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     setLoading(true);
+    setErrors({});
+    setSuccessMessage("");
+
+    // Validate form data
+    const validationErrors = validateFormData(formData, modalType);
+    if (Object.keys(validationErrors).length > 0) {
+      setErrors(validationErrors);
+      setLoading(false);
+      return;
+    }
 
     try {
       let endpoint = "";
-      let dataToSend = { ...formData };
+      const dataToSend = formatDataForSubmission(formData, modalType);
 
-      // Add default values and format data based on modal type to fix validation errors
       switch (modalType) {
         case "advance":
           endpoint = `${API_BASE_URL}/advances`;
-          dataToSend = {
-            ...formData,
-            date: formData.date || new Date().toISOString().slice(0, 10),
-            repayment_status: formData.repayment_status || 'pending'
-          };
           break;
         case "penalty":
           endpoint = `${API_BASE_URL}/penalties`;
-          dataToSend = {
-            ...formData,
-            date: formData.date || new Date().toISOString().slice(0, 10)
-          };
           break;
         case "allowance":
           endpoint = `${API_BASE_URL}/allowances`;
-          dataToSend = {
-            ...formData,
-            calculation_type: formData.calculation_type || 'fixed',
-            payment_date: formData.payment_date || new Date().toISOString().slice(0, 10),
-            // Ensure type is a valid allowance type
-            type: formData.type || 'housing_allowance'
-          };
           break;
         case "otherPayment":
           endpoint = `${API_BASE_URL}/other-payments`;
-          dataToSend = {
-            ...formData,
-            calculation_type: formData.calculation_type || 'fixed',
-            payment_date: formData.payment_date || new Date().toISOString().slice(0, 10),
-            // Ensure type is a valid payment type
-            type: formData.type || 'bonus'
-          };
           break;
         case "custody":
           endpoint = `${API_BASE_URL}/custodies`;
-          dataToSend = {
-            ...formData,
-            item_name: formData.item_name || 'عهدة',
-            issue_date: formData.issue_date || new Date().toISOString().slice(0, 10)
-          };
           break;
         case "attendance":
           endpoint = `${API_BASE_URL}/attendances`;
-          // Format check_in and check_out to H:i format (24-hour time)
-          let checkInTime = '';
-          let checkOutTime = '';
-          
-          if (formData.check_in) {
-            const checkInDate = new Date(formData.check_in);
-            checkInTime = checkInDate.toTimeString().slice(0, 5); // HH:MM format
-          } else {
-            const now = new Date();
-            checkInTime = now.toTimeString().slice(0, 5);
-          }
-          
-          if (formData.check_out) {
-            const checkOutDate = new Date(formData.check_out);
-            checkOutTime = checkOutDate.toTimeString().slice(0, 5); // HH:MM format
-          }
-          
-          dataToSend = {
-            ...formData,
-            check_in: checkInTime,
-            check_out: checkOutTime || null,
-            date: formData.date || new Date().toISOString().slice(0, 10)
-          };
           break;
       }
 
@@ -230,33 +376,51 @@ const Payroll = () => {
         await axios.put(`${endpoint}/${dataToSend.id}`, dataToSend, {
           headers: getAuthHeaders(),
         });
+        setSuccessMessage("تم تحديث البيانات بنجاح");
       } else {
         await axios.post(endpoint, dataToSend, {
           headers: getAuthHeaders(),
         });
+        setSuccessMessage("تم إضافة البيانات بنجاح");
       }
 
       setShowModal(false);
       setFormData({});
 
       // Refresh data
-      fetchAdvances();
-      fetchPenalties();
-      fetchAllowances();
-      fetchOtherPayments();
-      fetchCustodies();
-      fetchAttendances();
-      fetchPayrollSummary();
+      await Promise.all([
+        fetchAdvances(),
+        fetchPenalties(),
+        fetchAllowances(),
+        fetchOtherPayments(),
+        fetchCustodies(),
+        fetchAttendances(),
+        fetchPayrollSummary()
+      ]);
 
       if (selectedEmployee) {
         fetchEmployeeSalaryDetails(selectedEmployee.id);
       }
     } catch (error) {
       console.error("Error submitting form:", error);
-      // Show error message to user
-      if (error.response && error.response.data && error.response.data.errors) {
-        console.error("Validation errors:", error.response.data.errors);
-        alert("خطأ في التحقق من البيانات: " + JSON.stringify(error.response.data.errors));
+      
+      if (error.response && error.response.data) {
+        if (error.response.data.errors) {
+          // Handle validation errors from backend
+          const backendErrors = {};
+          Object.keys(error.response.data.errors).forEach(key => {
+            backendErrors[key] = error.response.data.errors[key][0];
+          });
+          setErrors(backendErrors);
+        } else if (error.response.data.message) {
+          setErrors({ general: error.response.data.message });
+        } else {
+          setErrors({ general: "حدث خطأ أثناء حفظ البيانات" });
+        }
+      } else if (error.request) {
+        setErrors({ general: "خطأ في الاتصال بالخادم" });
+      } else {
+        setErrors({ general: "حدث خطأ غير متوقع" });
       }
     } finally {
       setLoading(false);
@@ -266,6 +430,7 @@ const Payroll = () => {
   const handleDelete = async (type, id) => {
     if (!confirm("هل أنت متأكد من الحذف؟")) return;
 
+    setLoading(true);
     try {
       let endpoint = "";
       switch (type) {
@@ -293,20 +458,25 @@ const Payroll = () => {
         headers: getAuthHeaders(),
       });
 
+      setSuccessMessage("تم حذف البيانات بنجاح");
+
       // Refresh data
-      fetchAdvances();
-      fetchPenalties();
-      fetchAllowances();
-      fetchOtherPayments();
-      fetchCustodies();
-      fetchAttendances();
-      fetchPayrollSummary();
+      await Promise.all([
+        fetchAdvances(),
+        fetchPenalties(),
+        fetchAllowances(),
+        fetchOtherPayments(),
+        fetchCustodies(),
+        fetchAttendances(),
+        fetchPayrollSummary()
+      ]);
 
       if (selectedEmployee) {
         fetchEmployeeSalaryDetails(selectedEmployee.id);
       }
     } catch (error) {
       console.error("Error deleting item:", error);
+      setErrors({ general: "حدث خطأ أثناء حذف البيانات" });
     } finally {
       setLoading(false);
     }
@@ -314,6 +484,9 @@ const Payroll = () => {
 
   const openModal = (type, item = {}) => {
     setModalType(type);
+    setErrors({});
+    setSuccessMessage("");
+    
     // Initialize form data with default values based on type
     let initialFormData = { ...item };
     
@@ -322,7 +495,14 @@ const Payroll = () => {
         initialFormData = {
           ...item,
           date: item.date || new Date().toISOString().slice(0, 10),
-          repayment_status: item.repayment_status || 'pending'
+          repayment_status: item.repayment_status || 'pending',
+          amount: item.total_amount || item.amount || ''
+        };
+        break;
+      case "penalty":
+        initialFormData = {
+          ...item,
+          date: item.date || new Date().toISOString().slice(0, 10)
         };
         break;
       case "allowance":
@@ -345,7 +525,8 @@ const Payroll = () => {
         initialFormData = {
           ...item,
           item_name: item.item_name || '',
-          issue_date: item.issue_date || new Date().toISOString().slice(0, 10)
+          issue_date: item.issue_date || new Date().toISOString().slice(0, 10),
+          status: item.status || 'issued'
         };
         break;
       case "attendance":
@@ -361,9 +542,6 @@ const Payroll = () => {
           } else {
             checkInValue = item.check_in;
           }
-        } else {
-          const now = new Date();
-          checkInValue = now.toISOString().slice(0, 16);
         }
         
         if (item.check_out) {
@@ -391,14 +569,38 @@ const Payroll = () => {
   const resetForm = () => {
     setFormData({});
     setShowModal(false);
+    setErrors({});
+    setSuccessMessage("");
   };
+
+  // Error display component
+  const ErrorMessage = ({ message }) => (
+    <div className="text-red-600 text-sm mt-1">{message}</div>
+  );
+
+  // Success message component
+  const SuccessMessage = () => (
+    successMessage && (
+      <div className="fixed top-4 right-4 bg-green-100 border border-green-400 text-green-700 px-4 py-3 rounded z-50">
+        {successMessage}
+      </div>
+    )
+  );
 
   return (
     <div className="p-6 max-w-7xl mx-auto" dir="rtl">
+      <SuccessMessage />
+      
       <div className="mb-6">
         <h1 className="text-3xl font-bold text-gray-900 mb-2">إدارة الرواتب</h1>
         <p className="text-gray-600">إدارة السلف والجزاءات والبدلات</p>
+        {errors.general && (
+          <div className="mt-2 p-3 bg-red-100 border border-red-400 text-red-700 rounded">
+            {errors.general}
+          </div>
+        )}
       </div>
+
       {/* Tab Navigation */}
       <div className="mb-6">
         <div className="border-b border-gray-200">
@@ -532,6 +734,7 @@ const Payroll = () => {
                       ? "border-blue-500 bg-blue-50"
                       : "border-gray-200 hover:border-gray-300"
                   }`}
+                  disabled={loading}
                 >
                   <div className="font-medium">{employee.name}</div>
                   <div className="text-sm text-gray-500">{employee.position}</div>
@@ -561,7 +764,8 @@ const Payroll = () => {
             <h2 className="text-2xl font-bold text-gray-900">السلف</h2>
             <button
               onClick={() => openModal("advance")}
-              className="bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700"
+              className="bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700 disabled:opacity-50"
+              disabled={loading}
             >
               إضافة سلفة جديدة
             </button>
@@ -606,13 +810,15 @@ const Payroll = () => {
                     <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
                       <button
                         onClick={() => openModal("advance", advance)}
-                        className="text-indigo-600 hover:text-indigo-900 ml-2"
+                        className="text-indigo-600 hover:text-indigo-900 ml-2 disabled:opacity-50"
+                        disabled={loading}
                       >
                         تعديل
                       </button>
                       <button
                         onClick={() => handleDelete("advance", advance.id)}
-                        className="text-red-600 hover:text-red-900"
+                        className="text-red-600 hover:text-red-900 disabled:opacity-50"
+                        disabled={loading}
                       >
                         حذف
                       </button>
@@ -632,7 +838,8 @@ const Payroll = () => {
             <h2 className="text-2xl font-bold text-gray-900">الجزاءات والخصومات</h2>
             <button
               onClick={() => openModal("penalty")}
-              className="bg-red-600 text-white px-4 py-2 rounded-md hover:bg-red-700"
+              className="bg-red-600 text-white px-4 py-2 rounded-md hover:bg-red-700 disabled:opacity-50"
+              disabled={loading}
             >
               إضافة جزاء جديد
             </button>
@@ -670,13 +877,15 @@ const Payroll = () => {
                     <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
                       <button
                         onClick={() => openModal("penalty", penalty)}
-                        className="text-indigo-600 hover:text-indigo-900 ml-2"
+                        className="text-indigo-600 hover:text-indigo-900 ml-2 disabled:opacity-50"
+                        disabled={loading}
                       >
                         تعديل
                       </button>
                       <button
                         onClick={() => handleDelete("penalty", penalty.id)}
-                        className="text-red-600 hover:text-red-900"
+                        className="text-red-600 hover:text-red-900 disabled:opacity-50"
+                        disabled={loading}
                       >
                         حذف
                       </button>
@@ -696,7 +905,8 @@ const Payroll = () => {
             <h2 className="text-2xl font-bold text-gray-900">البدلات</h2>
             <button
               onClick={() => openModal("allowance")}
-              className="bg-green-600 text-white px-4 py-2 rounded-md hover:bg-green-700"
+              className="bg-green-600 text-white px-4 py-2 rounded-md hover:bg-green-700 disabled:opacity-50"
+              disabled={loading}
             >
               إضافة بدل جديد
             </button>
@@ -737,13 +947,15 @@ const Payroll = () => {
                     <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
                       <button
                         onClick={() => openModal("allowance", allowance)}
-                        className="text-indigo-600 hover:text-indigo-900 ml-2"
+                        className="text-indigo-600 hover:text-indigo-900 ml-2 disabled:opacity-50"
+                        disabled={loading}
                       >
                         تعديل
                       </button>
                       <button
                         onClick={() => handleDelete("allowance", allowance.id)}
-                        className="text-red-600 hover:text-red-900"
+                        className="text-red-600 hover:text-red-900 disabled:opacity-50"
+                        disabled={loading}
                       >
                         حذف
                       </button>
@@ -763,7 +975,8 @@ const Payroll = () => {
             <h2 className="text-2xl font-bold text-gray-900">مدفوعات أخرى</h2>
             <button
               onClick={() => openModal("otherPayment")}
-              className="bg-purple-600 text-white px-4 py-2 rounded-md hover:bg-purple-700"
+              className="bg-purple-600 text-white px-4 py-2 rounded-md hover:bg-purple-700 disabled:opacity-50"
+              disabled={loading}
             >
               إضافة مدفوعة جديدة
             </button>
@@ -804,13 +1017,15 @@ const Payroll = () => {
                     <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
                       <button
                         onClick={() => openModal("otherPayment", payment)}
-                        className="text-indigo-600 hover:text-indigo-900 ml-2"
+                        className="text-indigo-600 hover:text-indigo-900 ml-2 disabled:opacity-50"
+                        disabled={loading}
                       >
                         تعديل
                       </button>
                       <button
                         onClick={() => handleDelete("otherPayment", payment.id)}
-                        className="text-red-600 hover:text-red-900"
+                        className="text-red-600 hover:text-red-900 disabled:opacity-50"
+                        disabled={loading}
                       >
                         حذف
                       </button>
@@ -830,7 +1045,8 @@ const Payroll = () => {
             <h2 className="text-2xl font-bold text-gray-900">العهد</h2>
             <button
               onClick={() => openModal("custody")}
-              className="bg-orange-600 text-white px-4 py-2 rounded-md hover:bg-orange-700"
+              className="bg-orange-600 text-white px-4 py-2 rounded-md hover:bg-orange-700 disabled:opacity-50"
+              disabled={loading}
             >
               إضافة عهدة جديدة
             </button>
@@ -875,13 +1091,15 @@ const Payroll = () => {
                     <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
                       <button
                         onClick={() => openModal("custody", custody)}
-                        className="text-indigo-600 hover:text-indigo-900 ml-2"
+                        className="text-indigo-600 hover:text-indigo-900 ml-2 disabled:opacity-50"
+                        disabled={loading}
                       >
                         تعديل
                       </button>
                       <button
                         onClick={() => handleDelete("custody", custody.id)}
-                        className="text-red-600 hover:text-red-900"
+                        className="text-red-600 hover:text-red-900 disabled:opacity-50"
+                        disabled={loading}
                       >
                         حذف
                       </button>
@@ -901,7 +1119,8 @@ const Payroll = () => {
             <h2 className="text-2xl font-bold text-gray-900">الحضور والانصراف</h2>
             <button
               onClick={() => openModal("attendance")}
-              className="bg-teal-600 text-white px-4 py-2 rounded-md hover:bg-teal-700"
+              className="bg-teal-600 text-white px-4 py-2 rounded-md hover:bg-teal-700 disabled:opacity-50"
+              disabled={loading}
             >
               إضافة سجل حضور
             </button>
@@ -939,13 +1158,15 @@ const Payroll = () => {
                     <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
                       <button
                         onClick={() => openModal("attendance", attendance)}
-                        className="text-indigo-600 hover:text-indigo-900 ml-2"
+                        className="text-indigo-600 hover:text-indigo-900 ml-2 disabled:opacity-50"
+                        disabled={loading}
                       >
                         تعديل
                       </button>
                       <button
                         onClick={() => handleDelete("attendance", attendance.id)}
-                        className="text-red-600 hover:text-red-900"
+                        className="text-red-600 hover:text-red-900 disabled:opacity-50"
+                        disabled={loading}
                       >
                         حذف
                       </button>
@@ -971,6 +1192,13 @@ const Payroll = () => {
                 {modalType === "custody" && "إضافة/تعديل عهدة"}
                 {modalType === "attendance" && "إضافة/تعديل حضور"}
               </h3>
+              
+              {errors.general && (
+                <div className="mb-4 p-3 bg-red-100 border border-red-400 text-red-700 rounded text-sm">
+                  {errors.general}
+                </div>
+              )}
+
               <form onSubmit={handleSubmit} className="space-y-4">
                 {/* Employee Selection */}
                 <div>
@@ -978,7 +1206,9 @@ const Payroll = () => {
                   <select
                     value={formData.employee_id || ""}
                     onChange={(e) => setFormData({ ...formData, employee_id: e.target.value })}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 ${
+                      errors.employee_id ? 'border-red-500' : 'border-gray-300'
+                    }`}
                     required
                   >
                     <option value="">اختر موظف</option>
@@ -988,6 +1218,7 @@ const Payroll = () => {
                       </option>
                     ))}
                   </select>
+                  {errors.employee_id && <ErrorMessage message={errors.employee_id} />}
                 </div>
 
                 {/* Common fields based on modal type */}
@@ -998,11 +1229,15 @@ const Payroll = () => {
                       <input
                         type="number"
                         step="0.01"
+                        min="0"
                         value={formData.amount || ""}
                         onChange={(e) => setFormData({ ...formData, amount: e.target.value })}
-                        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 ${
+                          errors.amount ? 'border-red-500' : 'border-gray-300'
+                        }`}
                         required
                       />
+                      {errors.amount && <ErrorMessage message={errors.amount} />}
                     </div>
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-1">التاريخ</label>
@@ -1010,9 +1245,12 @@ const Payroll = () => {
                         type="date"
                         value={formData.date || ""}
                         onChange={(e) => setFormData({ ...formData, date: e.target.value })}
-                        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 ${
+                          errors.date ? 'border-red-500' : 'border-gray-300'
+                        }`}
                         required
                       />
+                      {errors.date && <ErrorMessage message={errors.date} />}
                     </div>
                   </>
                 )}
@@ -1023,11 +1261,15 @@ const Payroll = () => {
                       <label className="block text-sm font-medium text-gray-700 mb-1">عدد أشهر التقسيط</label>
                       <input
                         type="number"
+                        min="1"
                         value={formData.installment_months || ""}
                         onChange={(e) => setFormData({ ...formData, installment_months: e.target.value })}
-                        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 ${
+                          errors.installment_months ? 'border-red-500' : 'border-gray-300'
+                        }`}
                         required
                       />
+                      {errors.installment_months && <ErrorMessage message={errors.installment_months} />}
                     </div>
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-1">حالة السداد</label>
@@ -1053,9 +1295,12 @@ const Payroll = () => {
                         type="text"
                         value={formData.type || ""}
                         onChange={(e) => setFormData({ ...formData, type: e.target.value })}
-                        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 ${
+                          errors.type ? 'border-red-500' : 'border-gray-300'
+                        }`}
                         required
                       />
+                      {errors.type && <ErrorMessage message={errors.type} />}
                     </div>
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-1">السبب</label>
@@ -1076,7 +1321,9 @@ const Payroll = () => {
                       <select
                         value={formData.type || ""}
                         onChange={(e) => setFormData({ ...formData, type: e.target.value })}
-                        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 ${
+                          errors.type ? 'border-red-500' : 'border-gray-300'
+                        }`}
                         required
                       >
                         <option value="">اختر النوع</option>
@@ -1096,17 +1343,22 @@ const Payroll = () => {
                           </>
                         )}
                       </select>
+                      {errors.type && <ErrorMessage message={errors.type} />}
                     </div>
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-1">المبلغ</label>
                       <input
                         type="number"
                         step="0.01"
+                        min="0"
                         value={formData.amount || ""}
                         onChange={(e) => setFormData({ ...formData, amount: e.target.value })}
-                        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 ${
+                          errors.amount ? 'border-red-500' : 'border-gray-300'
+                        }`}
                         required
                       />
+                      {errors.amount && <ErrorMessage message={errors.amount} />}
                     </div>
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-1">نوع الحساب</label>
@@ -1114,7 +1366,6 @@ const Payroll = () => {
                         value={formData.calculation_type || "fixed"}
                         onChange={(e) => setFormData({ ...formData, calculation_type: e.target.value })}
                         className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                        required
                       >
                         <option value="fixed">ثابت</option>
                         <option value="percentage">نسبة مئوية</option>
@@ -1126,9 +1377,12 @@ const Payroll = () => {
                         type="date"
                         value={formData.payment_date || ""}
                         onChange={(e) => setFormData({ ...formData, payment_date: e.target.value })}
-                        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 ${
+                          errors.payment_date ? 'border-red-500' : 'border-gray-300'
+                        }`}
                         required
                       />
+                      {errors.payment_date && <ErrorMessage message={errors.payment_date} />}
                     </div>
                   </>
                 )}
@@ -1141,20 +1395,27 @@ const Payroll = () => {
                         type="text"
                         value={formData.item_name || ""}
                         onChange={(e) => setFormData({ ...formData, item_name: e.target.value })}
-                        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 ${
+                          errors.item_name ? 'border-red-500' : 'border-gray-300'
+                        }`}
                         required
                       />
+                      {errors.item_name && <ErrorMessage message={errors.item_name} />}
                     </div>
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-1">القيمة</label>
                       <input
                         type="number"
                         step="0.01"
+                        min="0"
                         value={formData.value || ""}
                         onChange={(e) => setFormData({ ...formData, value: e.target.value })}
-                        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 ${
+                          errors.value ? 'border-red-500' : 'border-gray-300'
+                        }`}
                         required
                       />
+                      {errors.value && <ErrorMessage message={errors.value} />}
                     </div>
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-1">تاريخ الإصدار</label>
@@ -1162,9 +1423,12 @@ const Payroll = () => {
                         type="date"
                         value={formData.issue_date || ""}
                         onChange={(e) => setFormData({ ...formData, issue_date: e.target.value })}
-                        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 ${
+                          errors.issue_date ? 'border-red-500' : 'border-gray-300'
+                        }`}
                         required
                       />
+                      {errors.issue_date && <ErrorMessage message={errors.issue_date} />}
                     </div>
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-1">الحالة</label>
@@ -1172,7 +1436,6 @@ const Payroll = () => {
                         value={formData.status || "issued"}
                         onChange={(e) => setFormData({ ...formData, status: e.target.value })}
                         className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                        required
                       >
                         <option value="issued">مُصدرة</option>
                         <option value="returned">مُرجعة</option>
@@ -1190,9 +1453,12 @@ const Payroll = () => {
                         type="date"
                         value={formData.date || ""}
                         onChange={(e) => setFormData({ ...formData, date: e.target.value })}
-                        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 ${
+                          errors.date ? 'border-red-500' : 'border-gray-300'
+                        }`}
                         required
                       />
+                      {errors.date && <ErrorMessage message={errors.date} />}
                     </div>
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-1">وقت الحضور</label>
@@ -1200,9 +1466,12 @@ const Payroll = () => {
                         type="datetime-local"
                         value={formData.check_in || ""}
                         onChange={(e) => setFormData({ ...formData, check_in: e.target.value })}
-                        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 ${
+                          errors.check_in ? 'border-red-500' : 'border-gray-300'
+                        }`}
                         required
                       />
+                      {errors.check_in && <ErrorMessage message={errors.check_in} />}
                     </div>
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-1">وقت الانصراف</label>
@@ -1210,8 +1479,11 @@ const Payroll = () => {
                         type="datetime-local"
                         value={formData.check_out || ""}
                         onChange={(e) => setFormData({ ...formData, check_out: e.target.value })}
-                        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 ${
+                          errors.check_out ? 'border-red-500' : 'border-gray-300'
+                        }`}
                       />
+                      {errors.check_out && <ErrorMessage message={errors.check_out} />}
                     </div>
                   </>
                 )}
@@ -1220,7 +1492,8 @@ const Payroll = () => {
                   <button
                     type="button"
                     onClick={resetForm}
-                    className="px-4 py-2 bg-gray-300 text-gray-700 rounded-md hover:bg-gray-400"
+                    className="px-4 py-2 bg-gray-300 text-gray-700 rounded-md hover:bg-gray-400 disabled:opacity-50"
+                    disabled={loading}
                   >
                     إلغاء
                   </button>
